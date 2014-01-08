@@ -23,34 +23,31 @@ public class ForwardServer extends Thread {
     final MyLogger logger;
     ServerSocket socket;
     int port;
-    int forwardPort;
-    String forwardHost;
+    Integer forwardPort = null;
+    String forwardHost = null;
     SocketListener listener = new DefaultSocketListener();
     final List<ForwardClient> clients = new ArrayList<ForwardClient>();
 
-    public ForwardServer(int port, MyLogger logger) {
+    public ForwardServer(int port, String fhost, int fport, MyLogger logger) {
         this.port = port;
+        this.forwardPort = fport;
+        this.forwardHost = fhost;
         this.logger = (logger != null ? logger : new DefaultMyLogger());
-        try {
-            socket = new ServerSocket(port);
-            logger.info("Forwarder server started on " + port);
-        } catch (IOException ex) {
-            socket = null;
-            logger.error("starting server socket", ex);
-        }
     }
 
-    void setForwardServer(String host, int port) {
-        forwardPort = port;
-        forwardHost = host;
-    }
-
+//    void setForwardServer(String host, int port) {
+//        forwardPort = port;
+//        forwardHost = host;
+//        if (forwardHost != null && forwardPort != null) {
+//            logger.info("Forward to " + forwardHost + ":" + forwardPort);
+//        }
+//    }
     public void setListener(SocketListener listener) {
         this.listener = listener;
     }
 
     public void close() {
-        if (socket != null && !socket.isClosed()) {
+        if (socket != null) {
             try {
                 socket.close();
             } catch (IOException ex) {
@@ -61,20 +58,35 @@ public class ForwardServer extends Thread {
     @Override
     public void run() {
         try {
+            try {
+                socket = new ServerSocket(port);
+                logger.info("Forwarder server started on " + port);
+                listener.onStart();
+            } catch (IOException ex) {
+                socket = null;
+                logger.error("starting server socket", ex);
+                throw new IllegalArgumentException("local port: " + ex.getMessage());
+            }
             while (socket != null) {
-                Socket clientSocket = socket.accept();
-                Socket serviceSocket = null;
-                try {
-                    serviceSocket = new Socket(forwardHost, forwardPort);
-                } catch (Exception ex) {
-                    logger.error("Starting forwarding server ", ex);
+                Socket localSocket = socket.accept();
+                logger.info("Client connected from " + localSocket.getInetAddress());
+                Socket remoteSocket = null;
+                String prefix = "server_" + port;
+                if (forwardHost != null && forwardPort != null) {
+                    try {
+                        remoteSocket = new Socket(forwardHost, forwardPort);
+                        prefix += "_" + forwardHost + "_" + forwardPort;
+                    } catch (Exception ex) {
+                        logger.error("Connecting forward server ", ex);
+                        throw new IllegalArgumentException("starting virtual server to remote host: " + ex.getMessage());
+                    }
                 }
-                final ForwardClient client = new ForwardClient(clientSocket);
-                clients.add(client);
-                final ForwardClient server = new ForwardClient(serviceSocket);
+                final ForwardClient localClient = new ForwardClient(localSocket);
+                final ForwardClient remoteClient = new ForwardClient(remoteSocket);
                 String id = "" + new Date().getTime();
-                File logReq = new File(forwardHost + "_" + forwardPort + "_" + id + "_req");
-                File logRes = new File(forwardHost + "_" + forwardPort + "_" + id + "_res");
+                File logReq = new File(prefix + "_" + id + "_req");
+                File logRes = new File(prefix + "_" + id + "_res");
+                File log = new File(prefix + "_" + id + "_log");
                 if (!logReq.exists()) {
                     try {
                         logReq.createNewFile();
@@ -84,6 +96,12 @@ public class ForwardServer extends Thread {
                 if (!logRes.exists()) {
                     try {
                         logRes.createNewFile();
+                    } catch (IOException ex) {
+                    }
+                }
+                if (!log.exists()) {
+                    try {
+                        log.createNewFile();
                     } catch (IOException ex) {
                     }
                 }
@@ -97,38 +115,59 @@ public class ForwardServer extends Thread {
                     resOut = new FileOutputStream(logRes);
                 } catch (FileNotFoundException ex) {
                 }
+                LogFileOutputStream logOut = null;
+                try {
+                    logOut = new LogFileOutputStream(log);
+                } catch (FileNotFoundException ex) {
+                }
                 final OutputStream reqOutImpl = (reqOut != null ? reqOut : null);
                 final OutputStream resOutImpl = (resOut != null ? resOut : null);
-                client.setListener(new SocketListener() {
+                final LogFileOutputStream logOutImpl = (logOut != null ? logOut : null);
+                localClient.setListener(new SocketListener() {
                     @Override
                     public void onStart() {
-                        logger.info("Forwarder client successfully started.");
+                        clients.add(localClient);
+                        logger.info("Client successfully started.");
+                        remoteClient.start();
                     }
 
                     @Override
                     public void onInput(int b) {
-                        if (server != null) {
-                            server.send(b);
+                        listener.onInput(b);
+                        if (remoteClient != null) {
+                            remoteClient.send(b);
                         }
                     }
 
                     @Override
                     public void onWrite(int b) {
+                        listener.onWrite(b);
                     }
 
                     @Override
                     public void onEnd() {
-                        if (server != null) {
-                            server.close();
+                        if (remoteClient != null) {
+                            remoteClient.close();
                         }
-                        logger.info("Forwarder client's connection ended.");
+                    }
+
+                    @Override
+                    public void beforeEnd() {
+                        if (remoteClient != null) {
+                            remoteClient.close();
+                        }
+                        logger.info("Client's connection ended.");
                         try {
-                            clients.remove(client);
+                            clients.remove(localClient);
                         } catch (Exception ex) {
                         }
                     }
+
+                    @Override
+                    public void onError(Exception ex) {
+                    }
                 });
-                server.setListener(new SocketListener() {
+                remoteClient.setListener(new SocketListener() {
                     @Override
                     public void onStart() {
                         logger.info("Successfully bound to forward server.");
@@ -136,9 +175,13 @@ public class ForwardServer extends Thread {
 
                     @Override
                     public void onInput(int b) {
-                        if (reqOutImpl != null) {
+                        if (localClient != null) {
+                            localClient.send(b);
+                        }
+                        if (resOutImpl != null) {
                             try {
-                                reqOutImpl.write(b);
+                                resOutImpl.write(b);
+                                logOutImpl.writeServer(b);
                             } catch (Exception ex) {
                             }
                         }
@@ -146,9 +189,10 @@ public class ForwardServer extends Thread {
 
                     @Override
                     public void onWrite(int b) {
-                        if (resOutImpl != null) {
+                        if (reqOutImpl != null) {
                             try {
-                                resOutImpl.write(b);
+                                reqOutImpl.write(b);
+                                logOutImpl.writeClient(b);
                             } catch (IOException ex) {
                             }
                         }
@@ -156,8 +200,8 @@ public class ForwardServer extends Thread {
 
                     @Override
                     public void onEnd() {
-                        if (client != null) {
-                            client.close();
+                        if (localClient != null) {
+                            localClient.close();
                         }
                         if (reqOutImpl != null) {
                             try {
@@ -166,39 +210,57 @@ public class ForwardServer extends Thread {
                             }
                             try {
 
-                                reqOutImpl.close();
+                                resOutImpl.flush();
+                            } catch (IOException ex) {
+                            }
+                            try {
+                                logOutImpl.flush();
                             } catch (IOException ex) {
                             }
                         }
                         if (resOutImpl != null) {
                             try {
-                                resOutImpl.flush();
+                                reqOutImpl.close();
                             } catch (IOException ex) {
                             }
                             try {
                                 resOutImpl.close();
                             } catch (IOException ex) {
                             }
+                            try {
+                                logOutImpl.close();
+                            } catch (IOException ex) {
+                            }
                         }
-                        logger.info("Connection of forward server ended.");
+                        logger.info("Forward server connection ended.");
+                    }
+
+                    @Override
+                    public void beforeEnd() {
+                    }
+
+                    @Override
+                    public void onError(Exception ex) {
+                        listener.onError(ex);
                     }
                 });
-                if (client != null) {
-                    client.start();
-                }
-                if (server != null) {
-                    server.start();
-                }
+                localClient.start();
             }
-        } catch (IOException ex) {
+        } catch (Exception ex) {
+            listener.onError(ex);
         } finally {
-            if (socket != null) {
-                try {
-                    socket.close();
-                } catch (IOException ex) {
-                }
+            listener.beforeEnd();
+            this.close();
+            for(ForwardClient client: clients){
+                client.close();
             }
-            logger.info("Forwarder server shut down.");
+            logger.info("Server shut down on " + port);
+            listener.onEnd();
         }
+    }
+
+    @Override
+    public String toString() {
+        return "" + port + ((forwardHost != null) ? ("\t" + forwardHost + "\t" + forwardPort) : "");
     }
 }

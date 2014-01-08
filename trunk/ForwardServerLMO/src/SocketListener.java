@@ -15,5 +15,9 @@ public interface SocketListener {
 
     void onWrite(int b);
 
+    void beforeEnd();
+
     void onEnd();
+    
+    void onError(Exception ex);
 }
