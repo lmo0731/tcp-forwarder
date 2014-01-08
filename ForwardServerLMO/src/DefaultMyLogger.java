@@ -16,7 +16,7 @@ public class DefaultMyLogger implements MyLogger {
 
     @Override
     public void error(String msg) {
-        System.err.println(String.format("ERROR: %s", msg));
+        System.out.println(String.format("ERROR: %s", msg));
     }
 
     @Override
@@ -31,7 +31,7 @@ public class DefaultMyLogger implements MyLogger {
 
     @Override
     public void fatal(String msg) {
-        System.err.println(String.format("FATAL: %s", msg));
+        System.out.println(String.format("FATAL: %s", msg));
     }
 
     @Override
@@ -42,8 +42,8 @@ public class DefaultMyLogger implements MyLogger {
 
     @Override
     public void error(String msg, Exception ex) {
-        System.err.println(String.format("ERROR: %s", msg));
-        ex.printStackTrace(System.err);
+        System.out.println(String.format("ERROR: %s", msg));
+        ex.printStackTrace(System.out);
     }
 
     @Override
@@ -60,7 +60,7 @@ public class DefaultMyLogger implements MyLogger {
 
     @Override
     public void fatal(String msg, Exception ex) {
-        System.err.println(String.format("FATAL: %s", msg));
-        ex.printStackTrace(System.err);
+        System.out.println(String.format("FATAL: %s", msg));
+        ex.printStackTrace(System.out);
     }
 }

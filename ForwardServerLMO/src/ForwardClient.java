@@ -3,6 +3,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -24,7 +25,7 @@ public class ForwardClient extends Thread {
     }
 
     public void close() {
-        if (socket != null && !socket.isClosed()) {
+        if (socket != null) {
             try {
                 socket.close();
             } catch (IOException ex) {
@@ -37,7 +38,15 @@ public class ForwardClient extends Thread {
     }
 
     public void send(int b) {
-        listener.onWrite(b);
+        if (socket != null) {
+            try {
+                OutputStream out = socket.getOutputStream();
+                out.write(b);
+                listener.onWrite(b);
+            } catch (IOException ex) {
+                System.out.println(ex);
+            }
+        }
     }
 
     @Override
@@ -58,8 +67,11 @@ public class ForwardClient extends Thread {
                 }
                 listener.onInput(b);
             }
-        } catch (IOException ex) {
+        } catch (SocketException ex) {
+        } catch (Exception ex) {
+            listener.onError(ex);
         } finally {
+            listener.beforeEnd();
             if (in != null) {
                 try {
                     in.close();
@@ -72,13 +84,8 @@ public class ForwardClient extends Thread {
                 } catch (IOException ex) {
                 }
             }
-            if (socket != null) {
-                try {
-                    socket.close();
-                } catch (IOException ex) {
-                }
-            }
             listener.onEnd();
+            this.close();
         }
     }
 }

@@ -24,4 +24,12 @@ public class DefaultSocketListener implements SocketListener {
     @Override
     public void onEnd() {
     }
+
+    @Override
+    public void beforeEnd() {
+    }
+
+    @Override
+    public void onError(Exception ex) {
+    }
 }
