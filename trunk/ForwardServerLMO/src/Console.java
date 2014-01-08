@@ -44,11 +44,13 @@ public class Console {
         }
         StringBuilder prefixsb = new StringBuilder();
         boolean validServer = false;
-
+        if (servers.containsKey(port)) {
+            throw new IllegalArgumentException("already added port");
+        }
         if (port > 65535) {
             throw new IllegalArgumentException("local port is invlaid");
         }
-        if (port > 65535) {
+        if (fport > 65535) {
             throw new IllegalArgumentException("remote port is invlaid");
         }
         try {
