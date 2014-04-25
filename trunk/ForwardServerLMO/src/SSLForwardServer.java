@@ -20,8 +20,8 @@ import javax.net.ssl.SSLServerSocketFactory;
  */
 public class SSLForwardServer extends ForwardServer {
 
-    public SSLForwardServer(int port, String fhost, int fport, MyLogger logger) {
-        super(port, fhost, fport, logger);
+    public SSLForwardServer(int port, String fhost, int fport, boolean ssl, MyLogger logger) {
+        super(port, fhost, fport, ssl, logger);
     }
 
     @Override

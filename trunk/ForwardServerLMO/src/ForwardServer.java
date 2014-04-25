@@ -6,9 +6,18 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import javax.net.SocketFactory;
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSession;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 /*
  * To change this template, choose Tools | Templates
@@ -27,12 +36,39 @@ public class ForwardServer extends Thread {
     String forwardHost = null;
     SocketListener listener = new DefaultSocketListener();
     final List<ForwardClient> clients = new ArrayList<ForwardClient>();
+    SocketFactory factory;
+    TrustManager[] trustAllCerts = new TrustManager[]{
+        new X509TrustManager() {
+            @Override
+            public X509Certificate[] getAcceptedIssuers() {
+                return new X509Certificate[0];
+            }
 
-    public ForwardServer(int port, String fhost, int fport, MyLogger logger) {
+            @Override
+            public void checkClientTrusted(X509Certificate[] certs, String authType) {
+            }
+
+            @Override
+            public void checkServerTrusted(X509Certificate[] certs, String authType) {
+            }
+        }};
+
+    public ForwardServer(int port, String fhost, int fport, boolean ssl, MyLogger logger) {
         this.port = port;
         this.forwardPort = fport;
         this.forwardHost = fhost;
         this.logger = (logger != null ? logger : new DefaultMyLogger());
+        if (ssl) {
+            try {
+                SSLContext sc = SSLContext.getInstance("SSL");
+                sc.init(null, trustAllCerts, new SecureRandom());
+                factory = sc.getSocketFactory();
+            } catch (Exception ex) {
+                throw new IllegalArgumentException(ex);
+            }
+        } else {
+            factory = SocketFactory.getDefault();
+        }
     }
 
 //    void setForwardServer(String host, int port) {
@@ -77,13 +113,8 @@ public class ForwardServer extends Thread {
                 Socket remoteSocket = null;
                 String prefix = "server_" + port;
                 if (forwardHost != null && forwardPort != null) {
-                    try {
-                        remoteSocket = new Socket(forwardHost, forwardPort);
-                        prefix += "_" + forwardHost + "_" + forwardPort;
-                    } catch (Exception ex) {
-                        logger.error("Connecting forward server ", ex);
-                        throw new IllegalArgumentException("starting virtual server to remote host: " + ex.getMessage());
-                    }
+                    remoteSocket = factory.createSocket(forwardHost, forwardPort);
+                    prefix += "_" + forwardHost + "_" + forwardPort;
                 }
                 final ForwardClient localClient = new ForwardClient(localSocket);
                 final ForwardClient remoteClient = new ForwardClient(remoteSocket);
