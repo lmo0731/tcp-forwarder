@@ -33,7 +33,7 @@ public class Console {
     public Console() {
     }
 
-    private void addServer(final int port, final String fhost, final int fport, final boolean ssl) throws IllegalArgumentException {
+    private void addServer(final int port, final String fhost, final int fport, final boolean sslserver, final boolean sslclient) throws IllegalArgumentException {
         final Logger log4j = Logger.getLogger("" + port);
         //BasicConfigurator.configure(new ConsoleAppender(new PatternLayout("%p: %C:%L %m%n")));
         try {
@@ -121,10 +121,10 @@ public class Console {
             }
         };
         final ForwardServer server;
-        if (ssl) {
-            server = new SSLForwardServer(port, fhost, fport, logger);
+        if (sslserver) {
+            server = new SSLForwardServer(port, fhost, fport, sslclient, logger);
         } else {
-            server = new ForwardServer(port, fhost, fport, logger);
+            server = new ForwardServer(port, fhost, fport, sslclient, logger);
         }
         server.setListener(new SocketListener() {
             @Override
@@ -206,10 +206,11 @@ public class Console {
                                 Integer localport = Integer.parseInt(words[1]);
                                 String remoteHost = words[2];
                                 Integer remoteport = Integer.parseInt(words[3]);
-                                addServer(localport, remoteHost, remoteport, true);
+                                Boolean sslClient = Boolean.parseBoolean(words[4]);
+                                addServer(localport, remoteHost, remoteport, true, sslClient);
                             } catch (Exception ex) {
                                 listener.fail("add error", ex);
-                                bw.write(words[0] + " LOCALPORT REMOTEHOST REMOTEPORT");
+                                bw.write(words[0] + " LOCALPORT REMOTEHOST REMOTEPORT SSLCLIENT(true, false)");
                                 bw.newLine();
                             }
                         } else if (words[0].equals("add")) {
@@ -217,10 +218,11 @@ public class Console {
                                 Integer localport = Integer.parseInt(words[1]);
                                 String remoteHost = words[2];
                                 Integer remoteport = Integer.parseInt(words[3]);
-                                addServer(localport, remoteHost, remoteport, false);
+                                Boolean sslClient = Boolean.parseBoolean(words[4]);
+                                addServer(localport, remoteHost, remoteport, false, sslClient);
                             } catch (Exception ex) {
                                 listener.fail("add error", ex);
-                                bw.write(words[0] + " LOCALPORT REMOTEHOST REMOTEPORT");
+                                bw.write(words[0] + " LOCALPORT REMOTEHOST REMOTEPORT SSLCLIENT(true, false)");
                                 bw.newLine();
                             }
                         } else if (words[0].equals("help")) {
