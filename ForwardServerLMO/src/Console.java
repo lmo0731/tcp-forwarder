@@ -12,8 +12,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import org.apache.log4j.BasicConfigurator;
-import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.DailyRollingFileAppender;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -35,7 +33,7 @@ public class Console {
     public Console() {
     }
 
-    private void addServer(final int port, final String fhost, final int fport) throws IllegalArgumentException {
+    private void addServer(final int port, final String fhost, final int fport, final boolean ssl) throws IllegalArgumentException {
         final Logger log4j = Logger.getLogger("" + port);
         //BasicConfigurator.configure(new ConsoleAppender(new PatternLayout("%p: %C:%L %m%n")));
         try {
@@ -122,7 +120,12 @@ public class Console {
                 log4j.log(stes[1].getClassName(), Level.FATAL, prefix + msg, ex);
             }
         };
-        final ForwardServer server = new ForwardServer(port, fhost, fport, logger);
+        final ForwardServer server;
+        if (ssl) {
+            server = new SSLForwardServer(port, fhost, fport, logger);
+        } else {
+            server = new ForwardServer(port, fhost, fport, logger);
+        }
         server.setListener(new SocketListener() {
             @Override
             public void onStart() {
@@ -198,18 +201,31 @@ public class Console {
                             bw.write("stopping...");
                             bw.newLine();
                             break;
+                        } else if (words[0].equals("addssl")) {
+                            try {
+                                Integer localport = Integer.parseInt(words[1]);
+                                String remoteHost = words[2];
+                                Integer remoteport = Integer.parseInt(words[3]);
+                                addServer(localport, remoteHost, remoteport, true);
+                            } catch (Exception ex) {
+                                listener.fail("add error", ex);
+                                bw.write(words[0] + " LOCALPORT REMOTEHOST REMOTEPORT");
+                                bw.newLine();
+                            }
                         } else if (words[0].equals("add")) {
                             try {
                                 Integer localport = Integer.parseInt(words[1]);
                                 String remoteHost = words[2];
                                 Integer remoteport = Integer.parseInt(words[3]);
-                                addServer(localport, remoteHost, remoteport);
+                                addServer(localport, remoteHost, remoteport, false);
                             } catch (Exception ex) {
                                 listener.fail("add error", ex);
                                 bw.write(words[0] + " LOCALPORT REMOTEHOST REMOTEPORT");
                                 bw.newLine();
                             }
                         } else if (words[0].equals("help")) {
+                            bw.write("addssl - port nemeh");
+                            bw.newLine();
                             bw.write("add - port nemeh");
                             bw.newLine();
                             bw.write("remove, stop - port hasah");
