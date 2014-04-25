@@ -55,18 +55,22 @@ public class ForwardServer extends Thread {
         }
     }
 
+    public void createSocket() {
+        try {
+            socket = new ServerSocket(port);
+            logger.info("Forwarder server started on " + port);
+            listener.onStart();
+        } catch (IOException ex) {
+            socket = null;
+            logger.error("starting server socket", ex);
+            throw new IllegalArgumentException("local port: " + ex.getMessage());
+        }
+    }
+
     @Override
     public void run() {
         try {
-            try {
-                socket = new ServerSocket(port);
-                logger.info("Forwarder server started on " + port);
-                listener.onStart();
-            } catch (IOException ex) {
-                socket = null;
-                logger.error("starting server socket", ex);
-                throw new IllegalArgumentException("local port: " + ex.getMessage());
-            }
+            createSocket();
             while (socket != null) {
                 Socket localSocket = socket.accept();
                 logger.info("Client connected from " + localSocket.getInetAddress());
@@ -251,7 +255,7 @@ public class ForwardServer extends Thread {
         } finally {
             listener.beforeEnd();
             this.close();
-            for(ForwardClient client: clients){
+            for (ForwardClient client : clients) {
                 client.close();
             }
             logger.info("Server shut down on " + port);
